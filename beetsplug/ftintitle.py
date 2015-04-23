@@ -25,25 +25,25 @@ from beets.util import displayable_path
 from beets import config
 
 
-def split_on_feat(artist):
-    """Given an artist string, split the "main" artist from any artist
+def split_on_feat(text):
+    """Given a text string, split the "main" artist from any artist
     on the right-hand side of a string like "feat". Return the main
     artist, which is always a string, and the featuring artist, which
     may be a string or None if none is present.
     """
     # split on the first "feat".
     regex = re.compile(plugins.feat_tokens(), re.IGNORECASE)
-    parts = [s.strip() for s in regex.split(artist, 1)]
+    parts = [s.strip() for s in regex.split(text, 1)]
     if len(parts) == 1:
         return parts[0], None
     else:
         return tuple(parts)
 
 
-def contains_feat(title):
+def contains_feat(text):
     """Determine whether the title contains a "featured" marker.
     """
-    return bool(re.search(plugins.feat_tokens(), title, flags=re.IGNORECASE))
+    return bool(re.search(plugins.feat_tokens(), text, flags=re.IGNORECASE))
 
 
 def find_feat_part(artist, albumartist):
@@ -87,12 +87,12 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
 
         self._command = ui.Subcommand(
             'ftintitle',
-            help='move featured artists to the title field')
+            help='move or reformat the featured artists into the title field')
 
         self._command.parser.add_option(
             '-d', '--drop', dest='drop',
             action='store_true', default=False,
-            help='drop featuring from artists and ignore title update')
+            help='drop featuring from artists and titles')
 
         if self.config['auto']:
             self.import_stages = [self.imported]
@@ -101,11 +101,10 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
 
         def func(lib, opts, args):
             self.config.set_args(opts)
-            drop_feat = self.config['drop'].get(bool)
             write = config['import']['write'].get(bool)
 
             for item in lib.items(ui.decargs(args)):
-                self.ft_in_title(item, drop_feat)
+                self.process_feat(item)
                 item.store()
                 if write:
                     item.try_write()
@@ -116,55 +115,48 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
     def imported(self, session, task):
         """Import hook for moving featuring artist automatically.
         """
+        write = config['import']['write'].get(bool)
+        for item in task.imported_items():
+            self.process_feat(item)
+            item.store()
+            if write:
+                item.try_write()
+
+    def update_metadata(self, item, field, main_part, feat_part):
+        """Update the meta data with the relevent information that
+        is passed into the function. THis function will allso handle the
+        dropping an formatting of the feating part of the field
+        """
         drop_feat = self.config['drop'].get(bool)
 
-        for item in task.imported_items():
-            self.ft_in_title(item, drop_feat)
-            item.store()
-
-    def update_metadata(self, item, feat_part, drop_feat):
-        """Choose how to add new artists to the title and set the new
-        metadata. Also, print out messages about any changes that are made.
-        If `drop_feat` is set, then do not add the artist to the title; just
-        remove it from the artist field.
-        """
-        # In all cases, update the artist fields.
-        self._log.info(u'artist: {0} -> {1}', item.artist, item.albumartist)
-        item.artist = item.albumartist
-        if item.artist_sort:
-            # Just strip the featured artist from the sort name.
-            item.artist_sort, _ = split_on_feat(item.artist_sort)
-
-        # Only update the title if it does not already contain a featured
-        # artist and if we do not drop featuring information.
-        if not drop_feat and not contains_feat(item.title):
+        if drop_feat or feat_part == '':
+            self._log.info(u'Dropping feat from {0}: {1} -> {2}',
+                           field, getattr(item, field), main_part)
+            setattr(item, field, main_part.strip())
+        else:
             feat_format = self.config['format'].get(unicode)
             new_format = feat_format.format(feat_part)
-            new_title = u"{0} {1}".format(item.title, new_format)
-            self._log.info(u'title: {0} -> {1}', item.title, new_title)
-            item.title = new_title
+            new_field = u"{0} {1}".format(main_part, new_format)
+            self._log.info(u'Updating {0}: {1} -> {2}',
+                           field, getattr(item, field), new_field)
+            setattr(item, field, new_field)
 
-    def ft_in_title(self, item, drop_feat):
-        """Look for featured artists in the item's artist fields and move
-        them to the title.
+    def process_feat(self, item):
+        """Look into the item and determine if the artist has a featuring
+        in the artist and move it into the title, or the title needs
+        reformtting.
         """
+
         artist = item.artist.strip()
-        albumartist = item.albumartist.strip()
+        title = item.title.strip()
 
-        # Check whether there is a featured artist on this track and the
-        # artist field does not exactly match the album artist field. In
-        # that case, we attempt to move the featured artist to the title.
-        _, featured = split_on_feat(artist)
-        if featured and albumartist != artist and albumartist:
-            self._log.info(displayable_path(item.path))
-
-            feat_part = None
-
-            # Attempt to find the featured artist.
-            feat_part = find_feat_part(artist, albumartist)
-
-            # If we have a featuring artist, move it to the title.
-            if feat_part:
-                self.update_metadata(item, feat_part, drop_feat)
-            else:
-                self._log.info(u'no featuring artists found')
+        if contains_feat(item.artist):
+            artist_part, feat_part = split_on_feat(artist)
+            self.update_metadata(item, 'artist', artist_part, '')
+            self.update_metadata(item, 'title', title, feat_part)
+        elif contains_feat(item.title):
+            title_part, feat_part = split_on_feat(title)
+            self.update_metadata(item, 'title', title_part, feat_part)
+        else:
+            pass
+            #self._log.info(u'No featuring artist found')
