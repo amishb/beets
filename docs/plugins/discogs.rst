@@ -25,4 +25,18 @@ MusicBrainz.
 If you have a Discogs ID for an album you want to tag, you can also enter it
 at the "enter Id" prompt in the importer.
 
+Troubleshooting
+---------------
+
+Several issues have been encountered with the Discogs API. If you have one,
+please start by searching for `a similar issue on the repo
+<https://github.com/sampsyo/beets/issues?utf8=%E2%9C%93&q=is%3Aissue+discogs>`_.
+
+Here are two things you can try:
+
+* Try deleting the token file (``~/.config/beets/discogs_token.json`` by
+  default) to force re-authorization.
+* Make sure that your system clock is accurate. The Discogs servers can reject
+  your request if your clock is too out of sync.
+
 .. _discogs-client: https://github.com/discogs/discogs_client

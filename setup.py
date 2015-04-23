@@ -55,7 +55,7 @@ if 'sdist' in sys.argv:
 
 setup(
     name='beets',
-    version='1.3.12',
+    version='1.3.13',
     description='music tagger and library organizer',
     author='Adrian Sampson',
     author_email='adrian@radbox.org',
@@ -76,6 +76,7 @@ setup(
         'beetsplug.bpd',
         'beetsplug.web',
         'beetsplug.lastgenre',
+        'beetsplug.metasync',
     ],
     entry_points={
         'console_scripts': [
@@ -117,9 +118,9 @@ setup(
         'web': ['flask', 'flask-cors'],
         'import': ['rarfile'],
         'thumbnails': ['pathlib', 'pyxdg'],
+        'metasync': ['dbus-python'],
     },
     # Non-Python/non-PyPI plugin dependencies:
-    # replaygain: mp3gain || aacgain
     # convert: ffmpeg
     # bpd: pygst
 
