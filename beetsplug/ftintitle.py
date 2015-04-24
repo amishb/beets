@@ -83,6 +83,7 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
             'auto': True,
             'drop': False,
             'format': u'feat. {0}',
+            'pretend': False,
         })
 
         self._command = ui.Subcommand(
@@ -94,6 +95,11 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
             action='store_true', default=False,
             help='drop featuring from artists and titles')
 
+        self._command.parser.add_option(
+            '-p', '--pretend', dest='pretend',
+            action='store_true', default=False,
+            help='only simulate the changes')
+
         if self.config['auto']:
             self.import_stages = [self.imported]
 
@@ -102,25 +108,30 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
         def func(lib, opts, args):
             self.config.set_args(opts)
             write = config['import']['write'].get(bool)
+            pretend = config['ftintitle']['pretend'].get(bool)
 
             for item in lib.items(ui.decargs(args)):
                 self.process_feat(item)
-                item.store()
-                if write:
-                    item.try_write()
+                if not pretend:
+                    item.store()
+                    if write:
+                        item.try_write()
 
         self._command.func = func
         return [self._command]
 
     def imported(self, session, task):
-        """Import hook for moving featuring artist automatically.
+        """Import hook for moving featuring information automatically.
         """
         write = config['import']['write'].get(bool)
+        pretend = config['ftintitle']['pretend'].get(bool)
+
         for item in task.imported_items():
             self.process_feat(item)
-            item.store()
-            if write:
-                item.try_write()
+            if not pretend:
+                item.store()
+                if write:
+                    item.try_write()
 
     def update_metadata(self, item, field, main_part, feat_part):
         """Update the meta data with the relevent information that
