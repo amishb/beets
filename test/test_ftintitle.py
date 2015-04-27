@@ -26,6 +26,7 @@ class FtInTitlePluginFunctional(unittest.TestCase, TestHelper):
     def setUp(self):
         """Set up configuration"""
         self.setup_beets()
+        self._ft_set_config()
         self.load_plugins('ftintitle')
 
     def tearDown(self):
@@ -38,34 +39,125 @@ class FtInTitlePluginFunctional(unittest.TestCase, TestHelper):
                              title=title,
                              albumartist=aartist)
 
-    def _ft_set_config(self, ftformat, drop=False, auto=True):
-        self.config['ftintitle']['format'] = ftformat
-        self.config['ftintitle']['drop'] = drop
-        self.config['ftintitle']['auto'] = auto
+    def _ft_set_config(self):
+        # Add my own defaults as they may change in the plugin
+        self.config['ftintitle']['format'] = 'feat. {0}'
+        self.config['ftintitle']['drop'] = False
+        self.config['ftintitle']['auto'] = True
+        self.config['ftintitle']['pretend'] = False
+        self.config['ftintitle']['smart'] = False
+
+    def test_functional_general_functionality(self):
+        # Test 1
+        self._ft_set_config()
+        item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', 'David')
+        self.run_command('ftintitle')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1 feat. Bob')
+
+        # Test 2
+        item = self._ft_add_item('/', u'Alice', u'Song 1 ft. Bob', u'Bob')
+        self.run_command('ftintitle')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1 feat. Bob')
 
     def test_functional_drop(self):
+        # Test 1
+        self._ft_set_config()
         item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', u'Alice')
         self.run_command('ftintitle', '-d')
         item.load()
         self.assertEqual(item['artist'], u'Alice')
         self.assertEqual(item['title'], u'Song 1')
 
+        # Test 2
+        item = self._ft_add_item('/', u'Alice', u'Song 1 ft. Bob', u'Alice')
+        self.run_command('ftintitle', '-d')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1')
+
+        # Test 3
+        self._ft_set_config()
+        self.config['ftintitle']['drop'] = True
+        item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', u'Alice')
+        item.load()
+        self.run_command('ftintitle')
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1')
+
+    def test_functional_pretend(self):
+        # Test 1
+        self._ft_set_config()
+        self.config['ftintitle']['format'] = 'featuring {0}'
+        item = self._ft_add_item('/', u'Alice', u'Song 1 ft. Bob', u'Bob')
+        item.load()
+        self.run_command('ftintitle', '-p')
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1 ft. Bob')
+
+        # Test 2
+        self._ft_set_config()
+        item = self._ft_add_item('/', u'Alice feat Bob', u'Song 1', u'Bob')
+        item.load()
+        self.run_command('ftintitle', '-p')
+        self.assertEqual(item['artist'], u'Alice feat Bob')
+        self.assertEqual(item['title'], u'Song 1')
+
+        # Test 3
+        self._ft_set_config()
+        self.config['ftintitle']['format'] = 'featuring. {0}'
+        self.config['ftintitle']['pretend'] = True
+        item.load()
+        item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', u'Alice')
+        self.run_command('ftintitle')
+        self.assertEqual(item['artist'], u'Alice ft Bob')
+        self.assertEqual(item['title'], u'Song 1')
+
+    def test_functional_smart(self):
+        item = self._ft_add_item('/', u'Bob ft Alice', u'Song1 ft. Bob',
+                                 u'Alice')
+        self.run_command('ftintitle', '-s')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1 ft. Bob')
+
+        item = self._ft_add_item('/', u'Alice feat Bob', u'Song 1', u'Bob')
+        self.run_command('ftintitle', '-s')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice')
+        self.assertEqual(item['title'], u'Song 1 ft. Bob')
+
+        self._ft_set_config('feat. {0}', False, True, False, True)
+        item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', u'Alice')
+        self.run_command('ftintitle')
+        item.load()
+        self.assertEqual(item['artist'], u'Alice feat. Bob')
+        self.assertEqual(item['title'], u'Song 1')
+
     def test_functional_custom_format(self):
-        self._ft_set_config('feat. {0}')
+        # Test 1
+        self._ft_set_config()
         item = self._ft_add_item('/', u'Alice ft Bob', u'Song 1', u'Alice')
         self.run_command('ftintitle')
         item.load()
         self.assertEqual(item['artist'], u'Alice')
         self.assertEqual(item['title'], u'Song 1 feat. Bob')
 
-        self._ft_set_config('featuring {0}')
+        # Test 2
+        self._ft_set_config()
+        self.config['ftintitle']['format'] = 'featuring {0}'
         item = self._ft_add_item('/', u'Alice feat. Bob', u'Song 1', u'Alice')
         self.run_command('ftintitle')
         item.load()
         self.assertEqual(item['artist'], u'Alice')
         self.assertEqual(item['title'], u'Song 1 featuring Bob')
 
-        self._ft_set_config('with {0}')
+        # Test 3
+        self._ft_set_config()
+        self.config['ftintitle']['format'] = 'with {0}'
         item = self._ft_add_item('/', u'Alice feat Bob', u'Song 1', u'Alice')
         self.run_command('ftintitle')
         item.load()

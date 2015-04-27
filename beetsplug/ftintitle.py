@@ -82,8 +82,9 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
         self.config.add({
             'auto': True,
             'drop': False,
-            'format': u'feat. {0}',
+            'format': u'ft. {0}',
             'pretend': False,
+            'smart': False,
         })
 
         self._command = ui.Subcommand(
@@ -92,23 +93,29 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
 
         self._command.parser.add_option(
             '-d', '--drop', dest='drop',
-            action='store_true', default=False,
+            action='store_true',
             help='drop featuring from artists and titles')
 
         self._command.parser.add_option(
             '-p', '--pretend', dest='pretend',
-            action='store_true', default=False,
+            action='store_true',
             help='only simulate the changes')
+
+        self._command.parser.add_option(
+            '-s', '--smart', dest='smart',
+            action='store_true', default=False,
+            help='attempt to improve accuracy by gueissing the artist from the \
+            album artist')
 
         if self.config['auto']:
             self.import_stages = [self.imported]
 
     def commands(self):
 
-        def func(lib, opts, args):
+        def _func(lib, opts, args):
             self.config.set_args(opts)
             write = config['import']['write'].get(bool)
-            pretend = config['ftintitle']['pretend'].get(bool)
+            pretend = self.config['pretend'].get(bool)
 
             for item in lib.items(ui.decargs(args)):
                 self.process_feat(item)
@@ -117,14 +124,14 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
                     if write:
                         item.try_write()
 
-        self._command.func = func
+        self._command.func = _func
         return [self._command]
 
     def imported(self, session, task):
         """Import hook for moving featuring information automatically.
         """
         write = config['import']['write'].get(bool)
-        pretend = config['ftintitle']['pretend'].get(bool)
+        pretend = self.config['pretend'].get(bool)
 
         for item in task.imported_items():
             self.process_feat(item)
